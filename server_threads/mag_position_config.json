@@ -1,0 +1,48 @@
+{
+  //地磁指纹地图坐标系大小 0-MAP_SIZE_X ，0-MAP_SIZE_Y（m）（建库、指示绘图时使用）
+  "MapSizeX": 35.0,
+  "MapSizeY": 20.0,
+  //对iLocator_xy平移到地磁指纹低地图坐标系下（在使用iLocator进行建库时使用）
+  "MoveX": 5.0,
+  "MoveY": 5.0,
+  //建库时的内插半径，单位（m）
+  InterRadius = 1
+  //是否删除多余内插块，1代表是，0代表不
+  DeleteExtraBlocks = 1
+  //删除多余内插块的程度，越大删除的内插范围越大，可以为负值。
+  DeleteLevel = -1
+
+  //神经网络pdr模型文件存放位置
+  "PdrModelFile": "D:\\pythonProjects\\MagPdrServer_forPackage\\pdr_and_model\\ronin.pt",
+  "PdrWindowSize": 200, //神经网络pdr窗口大小
+  "PdrSlideSize": 10, //神经网络pdr滑动距离
+   //"PdrImuAlignSize"= PdrSlideSize,  1个PDR坐标对应的imu\iLocator数据个数，iLocator与imu已对齐
+
+  //---------地图系统参数------------------
+  "BlockSize": 0.3, //地图块大小（m），必须和使用的指纹库文件建库时的块大小一致
+  "InitailBufferDis": 5,  //初始态匹配时，缓存池大小（m） > BufferDis!
+  "BufferDis": 4, //稳定态匹配时，缓冲池大小（m）
+  //"DownSipDis": = BlockSize 下采样粒度（m），应为块大小的整数倍？（下采样越小则相同长度序列的匹配点越多，匹配难度越大！）
+  //--------迭代搜索参数-------------------
+  "SlideStep": 8, //滑动窗口步长
+  "SlideBlockSize": 0.25, //滑动窗口最小粒度（m），>=DOWN_SIP_DIS！
+  "MaxIteration": 90, //高斯牛顿最大迭代次数
+  "TargetMeanLoss": 10, //目标损失
+  "IterStep": 0.02, //迭代步长，牛顿高斯迭代是局部最优，步长要小
+  "UpperLimitOfGaussNewteon": 1,  //当前参数下高斯牛顿迭代MAX_ITERATION的能降低的loss上限 = UpperLimitOfGaussNewteon * MaxIteration
+  //---------其他参数------------------------
+  "EmdFilterLevel": 3,  //低通滤波的程度，值越大滤波越强。整型，无单位。
+  "TransfersProduceConfig": [[0.25, 0.25, 1.5], //枚举transfers的参数，[0] = [△x, △y(米), △angle(角度) 读取时要转为弧度]
+                             [6, 6, 8]],  //[1] = [枚举的正负个数]
+  "MagMapFiles":  [ //地磁指纹库文件，[0]为mv.csv，[1]为mh.csv
+    "D:\\pythonProjects\\MagPdrServer_forPackage\\data\\InfCenter server room\\mag_map\\map_F1_2_B_0.3_deleted\\mv_qiu_2d.csv",
+    "D:\\pythonProjects\\MagPdrServer_forPackage\\data\\InfCenter server room\\mag_map\\map_F1_2_B_0.3_deleted\\mh_qiu_2d.csv"
+  ],
+  "EntranceList": [[5, 5]],  //机房入口坐标
+  "CoordinateOffset": [0, 0],  //将机房入口坐标映射到0-map_size_x, 0-map_size_y的坐标系下的move_x, move_y
+
+  //-------socket服务参数-------------------
+  "ServerPort": 2212,  //作为socket服务器接收APP发送的数据的端口
+  "LocalPortMagposition": 10001,  //使用socket在本地进程之间通信，地磁定位结果通信端口
+  "LocalPortPdr": 10002   //使用socket在本地进程之间通信，根据pdr判断用户是否长时间处于原地，通信端口
+}
