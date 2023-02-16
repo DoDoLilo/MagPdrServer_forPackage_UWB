@@ -6,11 +6,11 @@
   "MoveX": 5.0,
   "MoveY": 5.0,
   //建库时的内插半径，单位（m）
-  InterRadius = 1
+  "InterRadius": 1,
   //是否删除多余内插块，1代表是，0代表不
-  DeleteExtraBlocks = 1
+  "DeleteExtraBlocks": 1,
   //删除多余内插块的程度，越大删除的内插范围越大，可以为负值。
-  DeleteLevel = -1
+  "DeleteLevel": -1,
 
   //神经网络pdr模型文件存放位置
   "PdrModelFile": "D:\\pythonProjects\\MagPdrServer_forPackage\\pdr_and_model\\ronin.pt",

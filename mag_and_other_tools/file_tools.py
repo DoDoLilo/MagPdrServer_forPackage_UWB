@@ -27,3 +27,6 @@ def file_name_end_with(file_name, end):
 # 文件是否存在
 def file_is_exist(file_name):
     return os.path.exists(file_name)
+
+# print(file_name_end_with("D:\pythonProjects\MagPdrServer_forPackage\test\build_map_test\files_list.csv", FileEnd.CSV.value))
+# print(file_name_end_with("D:\pythonProjects\MagPdrServer_forPackage\test\build_map_test\files_list.csv", ".csv"))

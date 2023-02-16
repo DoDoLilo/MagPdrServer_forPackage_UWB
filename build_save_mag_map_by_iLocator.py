@@ -27,24 +27,24 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     file_list_path = args.files  # 指向保存了[N][ilocator.csv, imu_file.csv, offset]的csv文件
-    map_save_dir = args.out_dir  # 指纹库输出路径
+    map_save_dir = args.out_dir  # 输出的指纹库保存目录
     config_json_file = args.json  # 配置文件路径
 
     # 初始化文件数组[N][ilocator.csv, imu_file.csv, offset]
     init_files_succeed = True
-    gt_imu_offset_list = None  # [N][ilocator.csv, imu_file.csv, offset]
-    if FT.file_name_end_with(file_list_path, FT.FileEnd.CSV) and FT.file_is_exist(file_list_path):
+    gt_imu_offset_arr = None  # [N][ilocator.csv, imu_file.csv, offset]
+    if FT.file_name_end_with(file_list_path, FT.FileEnd.CSV.value) and FT.file_is_exist(file_list_path):
         # 读出file_list文件中的内容[N][ilocator.csv, imu_file.csv, offset]
-        gt_imu_offset_list = np.loadtxt(file_list_path, delimiter=",")
+        gt_imu_offset_arr = np.loadtxt(file_list_path, delimiter=",", dtype=str)
         # 检查这些文件是否都合规
-        for imu_gt_offset in gt_imu_offset_list:
-            if len(gt_imu_offset_list) != 3:
+        for imu_gt_offset in gt_imu_offset_arr:
+            if len(imu_gt_offset) != 3:
                 init_files_succeed = False
                 print("File error: wrong shape of imu_gt_offset_list. Check the [imu.csv, gt.csv, offset] format.")
                 break
             # 检查所有imu\gt.csv文件后缀、是否存在
-            if not (FT.file_name_end_with(imu_gt_offset[0], FT.FileEnd.CSV) and FT.file_is_exist(imu_gt_offset[0]) and
-                    FT.file_name_end_with(imu_gt_offset[1], FT.FileEnd.CSV) and FT.file_is_exist(imu_gt_offset[1])):
+            if not (FT.file_name_end_with(imu_gt_offset[0], FT.FileEnd.CSV.value) and FT.file_is_exist(imu_gt_offset[0]) and
+                    FT.file_name_end_with(imu_gt_offset[1], FT.FileEnd.CSV.value) and FT.file_is_exist(imu_gt_offset[1])):
                 print("File error: some file is not end with csv or is not exist.")
                 init_files_succeed = False
                 break
@@ -79,11 +79,11 @@ if __name__ == '__main__':
             # 1.调用sync_points.py对imu_gt_offset_list中的多个imu\ilocator文件进行offset对齐合并
             #   得到原本的多个_sync.csv文件对应的数据结果，直接在这里做合并，转为ndarray
             imu_gt_sync_data = []
-            for gt_imu_offset in gt_imu_offset_list:
-                sync_data = SP.sync_slam_pos_and_imu_data(gt_imu_offset[0], gt_imu_offset[1], gt_imu_offset[2])
+            for gt_imu_offset in gt_imu_offset_arr:
+                sync_data = SP.sync_slam_pos_and_imu_data(gt_imu_offset[0], gt_imu_offset[1], float(gt_imu_offset[2]))
                 for row in sync_data:
                     imu_gt_sync_data.append(row)
-            imu_gt_sync_data = np.array(imu_gt_sync_data)
+            imu_gt_sync_data = np.array(imu_gt_sync_data, dtype=float)
 
             # 2.将多个文件对齐、合并后的一个ndarray进行建库
             mag_map = MMT.build_map_by_imu_gt_sync_ndarray(imu_gt_sync_data, MOVE_X, MOVE_Y, MAP_SIZE_X, MAP_SIZE_Y,
