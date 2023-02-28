@@ -230,13 +230,13 @@ def build_map_by_imu_gt_sync_ndarray(imu_gt_sync_data,
     # 栅格化
     change_axis(data_x_y, move_x, move_y)
     rast_mv_mh = build_rast_mv_mh(arr_mv_mh, data_x_y, map_size_x, map_size_y, block_size)
-    PT.paint_heat_map(rast_mv_mh, save_dir=fig_save_dir + '/no_inter' if fig_save_dir is not None else None)
+    PT.paint_heat_map(rast_mv_mh, save_dir=fig_save_dir + '\\no_inter' if fig_save_dir is not None else None)
     # 内插填补，绘制结果
     rast_mv_mh_before_inter_fill = rast_mv_mh.copy()
     inter_fill_completely(rast_mv_mh, time_thr, inter_radius, block_size)
     if delete_extra_blocks:
         delete_far_blocks(rast_mv_mh_before_inter_fill, rast_mv_mh, inter_radius, block_size, delete_level)
-    PT.paint_heat_map(rast_mv_mh, save_dir=fig_save_dir + '/intered' if fig_save_dir is not None else None)
+    PT.paint_heat_map(rast_mv_mh, save_dir=fig_save_dir + '\\intered' if fig_save_dir is not None else None)
     return rast_mv_mh
 
 
@@ -1032,7 +1032,7 @@ def inital_full_deep_search(entrances, match_seq,
 
 
 # 预处理pdr发送过来的数据.将pdr_data_buffer：
-# [N][time, [pdr_x, y], [10*[mag x, y, z, quat x, y, z, w]], pdr_index]变为[N][x,y, mv, mh, pdr_index]
+# [N][time, [pdr_x, y], [10*[mag x, y, z, quat x, y, z, w]], pdr_index]变为[N][x,y, mv, mh] [N][pdr_index]
 # 该函数不会修改pdr_data_buffer指向的内容
 # 下采样
 def change_pdr_thread_data_to_match_seq(pdr_data_buffer, down_sip_dis, lowpass_level):
@@ -1057,7 +1057,7 @@ def change_pdr_thread_data_to_match_seq(pdr_data_buffer, down_sip_dis, lowpass_l
     mvh_arr = np.vstack((mv_filtered_emd, mh_filtered_emd)).transpose()
 
     # 滤波后对mv/mh每10个平均后还给对应pdr_xy，得到match_seq_arr[N][x,y, mv,mh, pdr_index]
-    match_seq_arr = np.empty(shape=[pdr_num, 5], dtype=float)
+    match_seq_arr = np.empty(shape=[pdr_num, 6], dtype=float)
     for pi in range(0, pdr_num):
         match_seq_arr[pi][0] = pdr_data_buffer[pi][1][0]  # x
         match_seq_arr[pi][1] = pdr_data_buffer[pi][1][1]  # y
@@ -1068,9 +1068,13 @@ def change_pdr_thread_data_to_match_seq(pdr_data_buffer, down_sip_dis, lowpass_l
 
         match_seq_arr[pi][4] = pdr_data_buffer[pi][3]  # pdr_index
 
+        match_seq_arr[pi][5] = pdr_data_buffer[pi][0]  # time
+
+
     # 下采样，过程中记录i_mid对应的pdr原始下标
     match_seq_list = []
     pdr_index_list = []
+    time_list = []
     dis_sum_temp = 0
     i_start = 0
     i_mid = i_start
@@ -1085,6 +1089,7 @@ def change_pdr_thread_data_to_match_seq(pdr_data_buffer, down_sip_dis, lowpass_l
                                    np.mean(match_seq_arr[i_start:i, 2]),
                                    np.mean(match_seq_arr[i_start:i, 3])])
             pdr_index_list.append(match_seq_arr[i_mid][4])
+            time_list.append(match_seq_arr[i_mid][5])
             dis_sum_temp = 0
             i_start = i
             i_mid = i_start
@@ -1092,7 +1097,7 @@ def change_pdr_thread_data_to_match_seq(pdr_data_buffer, down_sip_dis, lowpass_l
             if dis_sum_temp >= mid_down_sip_dis:
                 i_mid = i
 
-    return np.array(match_seq_list), np.array(pdr_index_list)
+    return np.array(match_seq_list), np.array(pdr_index_list), np.array(time_list)
 
 
 # 均值移除

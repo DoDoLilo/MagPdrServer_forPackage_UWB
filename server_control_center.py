@@ -39,7 +39,7 @@ def mag_position_server_start(config_json_file):
     socket_server_thread = SocketServerThread(socket_output_queue, configurations)
     pdr_thread = PdrThread(pdr_input_queue, pdr_output_queue, configurations)
     mag_position_thread = MagPositionThread(mag_position_input_queue, mag_position_output_queue,
-                                            configurations)
+                                            configurations, socket_server_thread)
     # 启动线程
     socket_server_thread.start()
     pdr_thread.start()

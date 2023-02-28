@@ -17,14 +17,13 @@ class PdrThread(threading.Thread):
 
         self.in_data_queue = in_data_queue
         self.out_data_queue = out_data_queue
-        self.out_data_sock_file = configurations.LocalSocketPdr.makefile(mode='w')
+        # self.out_data_sock_file = configurations.LocalSocketPdr.makefile(mode='w')
 
         self.WINDOW_SIZE = configurations.PdrWindowSize
         self.SLIDE_SIZE = configurations.PdrSlideSize
         self.PDR_MODEL_PATH = configurations.PdrModelFile
 
         self.state = PdrState.STOP
-
 
     def run(self) -> None:
         self.pdr_thread()
@@ -79,8 +78,9 @@ class PdrThread(threading.Thread):
 
                 # 判断是否停止走路
                 if self.is_stop_move(vx, vy):
-                    self.out_data_sock_file.write('STANDING' + '\n')
-                    self.out_data_sock_file.flush()
+                    print("PDR_STATE:" + str(int(window_buffer[slide_size][0])) + ',' + 'STANDING' + '\n')
+                    # self.out_data_sock_file.write('STANDING' + '\n')
+                    # self.out_data_sock_file.flush()
 
                 # 将 [time, [px, py], mag_quat_list, pdr_index]放入out_data_queue中
                 # IMU data[ (pdr_i + 1)*10 - 5 : (pdr_i + 1)*10 + 5]

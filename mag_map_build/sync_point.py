@@ -33,7 +33,6 @@ def _postposcess_imu(imu_raw_path: str):
 def _slam_and_imu_sync(slam_post_list, imu_post_list, offset=0):
     p = 0
     res = []
-    print("offet,", offset)
     for row_imu in imu_post_list:
         time1 = float(row_imu[0])
         # if p >= len(slam_post_list):

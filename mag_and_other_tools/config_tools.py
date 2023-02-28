@@ -21,8 +21,8 @@ class SystemConfigurations():
         # TODO 检查设置的参数是否异常
         self.failed_inf = []
         self.init_succeed = True
-        self.LocalSocketMagposition = None
-        self.LocalSocketPdr = None
+        # self.LocalSocketMagposition = None
+        # self.LocalSocketPdr = None
 
         try:
             json_str = ''
@@ -114,26 +114,27 @@ class SystemConfigurations():
 
                 # 本系统作为socket服务器的端口
                 self.ServerPort = para_dict['ServerPort']
-                self.LocalPortMagposition = para_dict['LocalPortMagposition']
-                self.LocalPortPdr = para_dict['LocalPortPdr']
                 if self.ServerPort < 1 or self.ServerPort > 65535:
                     self.init_succeed = False
                     self.failed_inf.append('ServerPort < 1 or ServerPort > 65535')
 
                 # 与本地的其它程序通信所使用的本地socket
-                self.LocalSocketMagposition = socket.socket()
-                if self.LocalPortMagposition < 1 or self.LocalPortMagposition > 65535:
-                    self.init_succeed = False
-                    self.failed_inf.append('LocalPortMagposition < 1 or LocalPortMagposition > 65535')
-                else:
-                    self.LocalSocketMagposition.connect(('127.0.0.1', self.LocalPortMagposition))
+                # self.LocalPortMagposition = para_dict['LocalPortMagposition']
+                # self.LocalPortPdr = para_dict['LocalPortPdr']
 
-                self.LocalSocketPdr = socket.socket()
-                if self.LocalPortPdr < 1 or self.LocalPortPdr > 65535:
-                    self.init_succeed = False
-                    self.failed_inf.append('LocalPortPdr < 1 or LocalPortPdr > 65535')
-                else:
-                    self.LocalSocketPdr.connect(('127.0.0.1', self.LocalPortPdr))
+                # self.LocalSocketMagposition = socket.socket()
+                # if self.LocalPortMagposition < 1 or self.LocalPortMagposition > 65535:
+                #     self.init_succeed = False
+                #     self.failed_inf.append('LocalPortMagposition < 1 or LocalPortMagposition > 65535')
+                # else:
+                #     self.LocalSocketMagposition.connect(('127.0.0.1', self.LocalPortMagposition))
+
+                # self.LocalSocketPdr = socket.socket()
+                # if self.LocalPortPdr < 1 or self.LocalPortPdr > 65535:
+                #     self.init_succeed = False
+                #     self.failed_inf.append('LocalPortPdr < 1 or LocalPortPdr > 65535')
+                # else:
+                #     self.LocalSocketPdr.connect(('127.0.0.1', self.LocalPortPdr))
 
         except ConnectionRefusedError as ce:
             self.failed_inf.append(['对方程序未开启socket服务', ce])
@@ -143,8 +144,8 @@ class SystemConfigurations():
             self.init_succeed = False
 
         # 如果初始化失败，断开可能已经建立的socket连接
-        if self.init_succeed is False:
-            if self.LocalSocketMagposition is not None:
-                self.LocalSocketMagposition.close()
-            if self.LocalSocketPdr is not None:
-                self.LocalSocketPdr.close()
+        # if self.init_succeed is False:
+        #     if self.LocalSocketMagposition is not None:
+        #         self.LocalSocketMagposition.close()
+        #     if self.LocalSocketPdr is not None:
+        #         self.LocalSocketPdr.close()

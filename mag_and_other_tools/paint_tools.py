@@ -23,7 +23,8 @@ def paint_heat_map(arr_mv_mh, num=0, show_mv=True, show_mh=True, save_dir=None):
         )
         if save_dir is not None:
             plt.savefig(save_dir+'_mv.png')
-        plt.show()
+            # print("Save fig to:"+save_dir)
+        # plt.show()
 
     if show_mh:
         # plt.figure(figsize=(10, 36))
@@ -40,7 +41,8 @@ def paint_heat_map(arr_mv_mh, num=0, show_mv=True, show_mh=True, save_dir=None):
         )
         if save_dir is not None:
             plt.savefig(save_dir+'_mh.png')
-        plt.show()
+            # print("Save fig to:"+save_dir)
+        # plt.show()
     return
 
 
