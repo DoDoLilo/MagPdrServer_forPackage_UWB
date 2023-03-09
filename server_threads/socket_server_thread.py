@@ -18,7 +18,7 @@ class SocketServerThread(threading.Thread):
         super(SocketServerThread, self).__init__()
         self.out_data_queue = out_data_queue  # 输出数据的队列
         self.server_port = configurations.ServerPort  # 监听的端口号
-        self.user_phone = None  # 最后定位的用户身份（手机号）
+        self.user_phone = 000  # 最后定位的用户身份（手机号）
         self.cur_socket_connection = None  # 保存当前正在连接的socket连接
         self.cur_socket_file = None  # 用当前socket连接创建的文件流
 
@@ -27,32 +27,35 @@ class SocketServerThread(threading.Thread):
 
     def socket_server_thread(self):
         # socket服务器端，一直在监听，同一时刻只允许连接一个socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        print(self.server_port)
-        s.bind(('0.0.0.0', self.server_port))  # 监听端口
-        s.listen()
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            print(self.server_port)
+            s.bind(('0.0.0.0', self.server_port))  # 监听端口
+            s.listen()
 
-        while True:
-            print('Waiting for connection...Port = ', self.server_port)
-            sock, addr = s.accept()  # 建立socket连接，但是同一时刻只允许连接一个socket
+            while True:
+                print('Waiting for connection...Port = ', self.server_port)
+                sock, addr = s.accept()  # 建立socket连接，但是同一时刻只允许连接一个socket
 
-            # 在存在连接的情况下来了新的连接，需要主动让对应的数据接受线程退出
-            #   这里我们在外面主动对IO流/socket连接进行关闭，里面的readline()会异常然后退出，
-            #   达到了停止对应的数据接受线程的目的
-            if self.cur_socket_file is not None:
-                self.cur_socket_file.close()
-                self.cur_socket_file = None
-            if self.cur_socket_connection is not None:
-                self.cur_socket_connection.close()
-                self.cur_socket_connection = None
-                print('Connection closed.')
+                # 在存在连接的情况下来了新的连接，需要主动让对应的数据接受线程退出
+                #   这里我们在外面主动对IO流/socket连接进行关闭，里面的readline()会异常然后退出，
+                #   达到了停止对应的数据接受线程的目的
+                if self.cur_socket_file is not None:
+                    self.cur_socket_file.close()
+                    self.cur_socket_file = None
+                if self.cur_socket_connection is not None:
+                    self.cur_socket_connection.close()
+                    self.cur_socket_connection = None
+                    print('Connection closed.')
 
-            # 开启接受数据子线程
-            self.cur_socket_connection = sock
-            self.cur_socket_file = sock.makefile(mode='r')
-            print('Accept new connection from %s:%s...' % addr)
-            t = threading.Thread(target=self.socket_data_reciver)
-            t.start()
+                # 开启接受数据子线程
+                self.cur_socket_connection = sock
+                self.cur_socket_file = sock.makefile(mode='r')
+                print('Accept new connection from %s:%s...' % addr)
+                t = threading.Thread(target=self.socket_data_reciver)
+                t.start()
+        except Exception as e:
+            print(e)
 
         return
 

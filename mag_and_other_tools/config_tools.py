@@ -60,6 +60,7 @@ class SystemConfigurations():
                 #   神经网络pdr模型文件存放位置、pdr窗口大小、pdr窗口滑动距离
                 # TODO 到时候应该是将模型也打包封装不让外部看到，这个属性可能不需要
                 self.PdrModelFile = para_dict['PdrModelFile']
+                self.PositionSaveDir = para_dict['PositionSaveDir']
                 if not self.PdrModelFile.endswith('.pt') or not os.path.exists(self.PdrModelFile):
                     self.init_succeed = False
                     self.failed_inf.append('PdrModelFile没有以.pt结尾 or PdrModelFile文件不存在')

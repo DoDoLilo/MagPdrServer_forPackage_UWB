@@ -77,10 +77,10 @@ class PdrThread(threading.Thread):
                 py += vy * slide_time
 
                 # 判断是否停止走路
-                if self.is_stop_move(vx, vy):
-                    print("PDR_STATE:" + str(int(window_buffer[slide_size][0])) + ',' + 'STANDING' + '\n')
-                    # self.out_data_sock_file.write('STANDING' + '\n')
-                    # self.out_data_sock_file.flush()
+                # if self.is_stop_move(vx, vy):
+                #     print("PDR_STATE:" + str(int(window_buffer[slide_size][0])) + ',' + 'STANDING')
+                #     self.out_data_sock_file.write('STANDING' + '\n')
+                #     self.out_data_sock_file.flush()
 
                 # 将 [time, [px, py], mag_quat_list, pdr_index]放入out_data_queue中
                 # IMU data[ (pdr_i + 1)*10 - 5 : (pdr_i + 1)*10 + 5]

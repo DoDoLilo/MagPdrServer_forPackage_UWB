@@ -26,6 +26,8 @@ class MagPositionThread(threading.Thread):
         self.socket_server_thread = socket_server_thread
 
         # 从配置文件中读取各种参数，并赋予成员变量
+        # -----------定位结果文件保存路径------------------------
+        self.position_save_dir = configurations.PositionSaveDir
         # -----------地图系统参数------------------
         self.BLOCK_SIZE = configurations.BlockSize  # 地图块大小（m），必须和使用的指纹库文件建库时的块大小一致
         self.INITAIL_BUFFER_DIS = configurations.InitailBufferDis  # 初始态匹配时，缓存池大小（m） > BUFFER_DIS!
@@ -47,6 +49,8 @@ class MagPositionThread(threading.Thread):
         self.MAG_MAP_FILES = configurations.MagMapFiles
         self.COORDINATE_OFFSET = configurations.CoordinateOffset  # move_x,move_y
         self.ENTRANCE_LIST = configurations.EntranceList
+        self.MOVE_X = configurations.MoveX
+        self.MOVE_Y = configurations.MoveY
 
         mag_map = MMT.rebuild_map_from_mvh_files(self.MAG_MAP_FILES)
         if mag_map is None:
@@ -137,13 +141,14 @@ class MagPositionThread(threading.Thread):
                 # 将结果放入输出队列中，注意外部如果不及时取走结果，这一步可能（队列满）会阻塞，导致后续代码全部停止！
                 # out_data_queue.put(inital_map_xy)
                 # self.write_data_to_sock_file(self.add_head_to_xy(inital_map_xy))
-                # 打印地磁定位结果
-                self.print_mag_position_msg(self.add_head_to_xy(inital_map_xy, time_arr))
-
                 transfer = inital_transfer.copy()
-                print("Initial Transfer = ", transfer)
-                print("Initial Loss = ", inital_loss)
                 self.state = MagPositionState.STABLE_RUNNING
+
+                # 记录结果
+                position_save_arr = self.add_head_to_xy(inital_map_xy, time_arr)
+                # self.print_mag_position_msg(self.add_head_to_xy(inital_map_xy, time_arr))
+                # print("Initial Transfer = ", transfer)
+                # print("Initial Loss = ", inital_loss)
                 continue
 
             if self.state == MagPositionState.STABLE_RUNNING:
@@ -154,10 +159,18 @@ class MagPositionThread(threading.Thread):
                     cur_data = in_data_queue.get()
                     if isinstance(cur_data, str) and cur_data == 'END':
                         self.state = MagPositionState.STOP
+                        # 根据手机号、第一帧的时间戳构建文件名，保存至指定文件夹下
+                        user_phone = self.socket_server_thread.user_phone
+                        user_phone = '000' if user_phone is None or user_phone == '' else str(int(user_phone))
+                        start_time = str(int(position_save_arr[0][0]))
+                        file_name = self.position_save_dir + '/' + user_phone + "_" + start_time + ".csv"
+                        np.savetxt(file_name, position_save_arr, delimiter=',', fmt='%.2f')
+                        print("User " + user_phone + " end position, save to: " + file_name)
+
                         # out_data_queue.put('END')
                         # out_data_queue.put(np.array(pdr_index_list))
                         # self.write_data_to_sock_file('END')
-                        print('MAG_POSITION:' + 'END' + '\n')
+                        # print('END')
                         break
 
                     last_data = window_buffer[len(window_buffer) - 1]
@@ -166,7 +179,6 @@ class MagPositionThread(threading.Thread):
 
                     if window_buffer_dis >= self.BUFFER_DIS:
                         # 填满一个窗口，调用一次匹配算法，并将结果只应用到新加的那段坐标
-                        print("\n")
                         match_seq, pdr_index_arr, time_arr = MMT.change_pdr_thread_data_to_match_seq(window_buffer,
                                                                                            self.DOWN_SIP_DIS,
                                                                                            self.EMD_FILTER_LEVEL)
@@ -189,15 +201,16 @@ class MagPositionThread(threading.Thread):
                                                                                       self.UPPER_LIMIT_OF_GAUSSNEWTEON,
                                                                                       MMT.SearchPattern.BREAKE_ADVANCED_AND_USE_SECOND_LOSS_WHEN_FAILED)
 
-                        print("transfer = ", transfer)
-                        print("window points number = ", len(window_buffer))
-                        print("window buffer dis = ", window_buffer_dis)
                         # 只取出map_xy中slide_distance长度的结果，放入到out_data_queue中
                         new_xy = map_xy[len(map_xy) - new_xy_num: len(map_xy), :]
                         # out_data_queue.put(new_xy)
                         # self.write_data_to_sock_file(self.add_head_to_xy(new_xy))
-                        # 打印地磁定位结果
-                        self.print_mag_position_msg(self.add_head_to_xy(new_xy, time_arr))
+                        # 记录地磁定位结果
+                        position_save_arr = np.vstack((position_save_arr, self.add_head_to_xy(new_xy, time_arr)))
+                        # self.print_mag_position_msg(self.add_head_to_xy(new_xy, time_arr))
+                        # print("transfer = ", transfer)
+                        # print("window points number = ", len(window_buffer))
+                        # print("window buffer dis = ", window_buffer_dis)
 
                         # 从window_buffer中舍弃开头slide_distance长度的数据
                         abandon_index = len(window_buffer)
@@ -241,20 +254,16 @@ class MagPositionThread(threading.Thread):
         for i in range(0, len(new_xy)):
             sent_data[i][0] = xy_time[i]  # 系统时间毫秒
             sent_data[i][1] = self.socket_server_thread.user_phone  # 用户id（手机号）
-            sent_data[i][2] = new_xy[i][0]  # 坐标x
-            sent_data[i][3] = new_xy[i][1]  # 坐标y
+            sent_data[i][2] = new_xy[i][0] - self.MOVE_X  # 坐标x
+            sent_data[i][3] = new_xy[i][1] - self.MOVE_Y  # 坐标y
 
         return sent_data
 
     # time, use_id, x, y
     def print_mag_position_msg(self, data):
-        print('\n')
-
         for row in data:
             # 将row转为csv的格式后存储
             csv_str = ''
             for i in range(0, len(row) - 1):
                 csv_str += (str(row[i]) + ',') if i != 0 else (str(int(row[i])) + ',')
-            print('MAG_POSITION:' + csv_str + str(row[len(row) - 1]) + '\n')
-
-        print('\n')
+            print('MAG_POSITION:' + csv_str + str(row[len(row) - 1]))

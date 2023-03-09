@@ -230,13 +230,42 @@ def build_map_by_imu_gt_sync_ndarray(imu_gt_sync_data,
     # 栅格化
     change_axis(data_x_y, move_x, move_y)
     rast_mv_mh = build_rast_mv_mh(arr_mv_mh, data_x_y, map_size_x, map_size_y, block_size)
-    PT.paint_heat_map(rast_mv_mh, save_dir=fig_save_dir + '\\no_inter' if fig_save_dir is not None else None)
+    PT.paint_heat_map(rast_mv_mh, save_dir=fig_save_dir + '/no_inter' if fig_save_dir is not None else None)
     # 内插填补，绘制结果
     rast_mv_mh_before_inter_fill = rast_mv_mh.copy()
     inter_fill_completely(rast_mv_mh, time_thr, inter_radius, block_size)
     if delete_extra_blocks:
         delete_far_blocks(rast_mv_mh_before_inter_fill, rast_mv_mh, inter_radius, block_size, delete_level)
-    PT.paint_heat_map(rast_mv_mh, save_dir=fig_save_dir + '\\intered' if fig_save_dir is not None else None)
+    PT.paint_heat_map(rast_mv_mh, save_dir=fig_save_dir + '/intered' if fig_save_dir is not None else None)
+    return rast_mv_mh
+
+
+def build_map_by_robot_gt_imu_sync_ndarray(gt_imu_sync_data,
+                                           move_x, move_y, map_size_x, map_size_y,
+                                           time_thr=-1, inter_radius=1, block_size=0.3,
+                                           delete_extra_blocks=False, delete_level=0,
+                                           lowpass_filter_level=3,
+                                           fig_save_dir=None):
+    data_mag = gt_imu_sync_data[:, 23: 26]
+    data_quat = gt_imu_sync_data[:, 9: 13]
+    data_x_y = gt_imu_sync_data[:, 1: 3]
+
+    # 地磁转为垂直、水平分量mv\mh
+    arr_mv_mh = get_2d_mag_qiu(data_quat, data_mag)
+    # emd滤波，太慢了，不过是建库阶段，无所谓
+    mv_filtered_emd = lowpass_emd(arr_mv_mh[:, 0], lowpass_filter_level)
+    mh_filtered_emd = lowpass_emd(arr_mv_mh[:, 1], lowpass_filter_level)
+    arr_mv_mh = np.vstack((mv_filtered_emd, mh_filtered_emd)).transpose()
+    # 栅格化
+    change_axis(data_x_y, move_x, move_y)
+    rast_mv_mh = build_rast_mv_mh(arr_mv_mh, data_x_y, map_size_x, map_size_y, block_size)
+    PT.paint_heat_map(rast_mv_mh, save_dir=fig_save_dir + '/no_inter' if fig_save_dir is not None else None)
+    # 内插填补，绘制结果
+    rast_mv_mh_before_inter_fill = rast_mv_mh.copy()
+    inter_fill_completely(rast_mv_mh, time_thr, inter_radius, block_size)
+    if delete_extra_blocks:
+        delete_far_blocks(rast_mv_mh_before_inter_fill, rast_mv_mh, inter_radius, block_size, delete_level)
+    PT.paint_heat_map(rast_mv_mh, save_dir=fig_save_dir + '/intered' if fig_save_dir is not None else None)
     return rast_mv_mh
 
 
@@ -898,7 +927,7 @@ def produce_transfer_candidates_and_search(start_transfer, area_config,
                     last_loss_xy_tf_num = [loss, map_xy, transfer, iter_num]
                     if search_pattern == SearchPattern.BREAKE_ADVANCED_AND_USE_LAST_WHEN_FAILED \
                             or search_pattern == SearchPattern.BREAKE_ADVANCED_AND_USE_SECOND_LOSS_WHEN_FAILED:
-                        print("\t\t.search Succeed and break in advanced. Final loss = ", loss)
+                        # print("\t\t.search Succeed and break in advanced. Final loss = ", loss)
 
                         # TEST
                         # print("Start transfer = ",
@@ -938,7 +967,7 @@ def produce_transfer_candidates_and_search(start_transfer, area_config,
             candidates_loss_xy_tf.append(last_loss_xy_tf_num)
     # 如果选择了提前结束，但是到了这一步，表示寻找失败
     if search_pattern == SearchPattern.BREAKE_ADVANCED_AND_USE_LAST_WHEN_FAILED:
-        print("\t\t.Failed search, use last transfer. Final loss = ", loss)
+        # print("\t\t.Failed search, use last transfer. Final loss = ", loss)
         return start_transfer, transfer_axis_of_xy_seq(match_seq, start_transfer)
 
     # if search_pattern == SearchPattern.FULL_DEEP or BREAKE_ADVANCED_AND_USE_SECOND_LOSS_WHEN_FAILED:
@@ -955,10 +984,10 @@ def produce_transfer_candidates_and_search(start_transfer, area_config,
 
     if transfer is None or (
             search_pattern == SearchPattern.BREAKE_ADVANCED_AND_USE_SECOND_LOSS_WHEN_FAILED and min_loss > target_loss * 2):
-        print("\t\t.Failed search, use last transfer.Final loss = ", min_loss)
+        # print("\t\t.Failed search, use last transfer.Final loss = ", min_loss)
         return start_transfer, transfer_axis_of_xy_seq(match_seq, start_transfer)
     else:
-        print("\t\t.Found min, final loss = ", min_loss)
+        # print("\t\t.Found min, final loss = ", min_loss)
         return transfer, min_xy
 
 

@@ -42,7 +42,10 @@
   "CoordinateOffset": [0, 0],  //将机房入口坐标映射到0-map_size_x, 0-map_size_y的坐标系下的move_x, move_y
 
   //-------socket服务参数-------------------
-  "ServerPort": 2212  //作为socket服务器接收APP发送的数据的端口
+  "ServerPort": 2212,  //作为socket服务器接收APP发送的数据的端口
   //"LocalPortMagposition": 10001,  //使用socket在本地进程之间通信，地磁定位结果通信端口
   //"LocalPortPdr": 10002   //使用socket在本地进程之间通信，根据pdr判断用户是否长时间处于原地，通信端口
+
+  //-------定位结果文件存储位置---------------
+  "PositionSaveDir": "D:\\pythonProjects\\MagPdrServer_forPackage\\test\\position_test"
 }
