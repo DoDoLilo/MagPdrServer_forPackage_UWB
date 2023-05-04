@@ -52,6 +52,12 @@ class MagPositionThread(threading.Thread):
         self.MOVE_X = configurations.MoveX
         self.MOVE_Y = configurations.MoveY
 
+        # 先要将entrance_list坐标根据coordinate_offset映射到0-map_size_x, 0-map_size_y的坐标系下 → move_x, move_y
+        # 注意提前在这里做了，而不是在mag_position_thread里每次都做，导致重复平移entrance_list、第一次后都错了
+        for e in range(0, len(self.ENTRANCE_LIST)):
+            self.ENTRANCE_LIST[e][0] += self.COORDINATE_OFFSET[0]
+            self.ENTRANCE_LIST[e][1] += self.COORDINATE_OFFSET[1]
+
         mag_map = MMT.rebuild_map_from_mvh_files(self.MAG_MAP_FILES)
         if mag_map is None:
             print("地磁指纹文件错误，初始化失败！")
@@ -59,13 +65,12 @@ class MagPositionThread(threading.Thread):
         self.mag_map = mag_map
 
     def run(self) -> None:
-        self.mag_position_thread(self.in_data_queue, self.out_data_queue, self.COORDINATE_OFFSET, self.ENTRANCE_LIST)
+        self.mag_position_thread(self.in_data_queue, self.out_data_queue, self.ENTRANCE_LIST)
 
-    # 输入：容器引用、地图坐标系参数（左下角、右上角坐标）、地图所有入口的坐标
-    #    coordinate_offset，将entrance坐标平移到指纹库坐标系0-map_size_x, 0-map_size_y的move_x,move_y
+    # 输入：容器引用、地图坐标系参数（左下角、右上角坐标）、地图所有被平移到指纹库坐标系的入口坐标
     # 从in_data_queue中获取pdr_thread输出的 [time, [pdr_x, y], [10*[mag x, y, z]]]
     # 往out_data_list中放入[time, [mag_position_x,y]]
-    def mag_position_thread(self, in_data_queue, out_data_queue, coordinate_offset, entrance_list) -> None:
+    def mag_position_thread(self, in_data_queue, out_data_queue, entrance_list) -> None:
         transfer = None
         first_window_start_distance = self.INITAIL_BUFFER_DIS + self.SLIDE_BLOCK_SIZE * self.SLIDE_STEP - self.BUFFER_DIS  # 第一个滑动窗口的起始距离
         window_buffer = []
@@ -74,6 +79,7 @@ class MagPositionThread(threading.Thread):
         slide_distance = self.SLIDE_STEP * self.SLIDE_BLOCK_SIZE
 
         while True:
+            print("state is:", self.state)
             # 根据不同的状态对该数据做对应的处理
             if self.state == MagPositionState.STOP:
                 # 重新开始
@@ -91,11 +97,13 @@ class MagPositionThread(threading.Thread):
                 window_start = False
                 distance = 0
 
-                # 从数据输入流中取地足够初始遍历的数据。注意如果过程中遇到-1，则回到STOP状态
+                # 从数据输入流中取地足够初始遍历的数据。注意如果过程中遇到END，则回到STOP状态
                 while distance < self.INITAIL_BUFFER_DIS:
                     cur_data = in_data_queue.get()
                     if isinstance(cur_data, str) and cur_data == 'END':
                         self.state = MagPositionState.STOP
+                        print("END recived.")
+                        # print("state is:", self.state)
                         break
 
                     last_data = inital_data_buffer[len(inital_data_buffer) - 1]
@@ -112,10 +120,6 @@ class MagPositionThread(threading.Thread):
 
                 if self.state == MagPositionState.STOP:
                     continue
-                # 先要将entrance_list坐标根据coordinate_offset映射到0-map_size_x, 0-map_size_y的坐标系下 → move_x, move_y
-                for e in range(0, len(entrance_list)):
-                    entrance_list[e][0] += coordinate_offset[0]
-                    entrance_list[e][1] += coordinate_offset[1]
 
                 # 初始化搜索成功，状态转移至稳定搜索阶段，*而pdr坐标，并不需要使用move xy!都会包含在transfer里面
                 # 预处理pdr发送过来的数据，将[N][time, [pdr_x, y], [10*[mag x, y, z, quat x, y, z, w]], pdr_index]变为
@@ -134,8 +138,9 @@ class MagPositionThread(threading.Thread):
 
                 if inital_transfer is None:
                     # 怎么办？认为失败了
-                    print("初始搜索失败，请检查使用规范！")
+                    print("初始搜索失败，请确保指纹库建立正确、覆盖面积足够，or 减少初始窗口大小（但要保证比滑动窗口大）。")
                     self.state = MagPositionState.STOP
+                    # print("state is:", self.state)
                     continue
 
                 # 将结果放入输出队列中，注意外部如果不及时取走结果，这一步可能（队列满）会阻塞，导致后续代码全部停止！
@@ -147,8 +152,8 @@ class MagPositionThread(threading.Thread):
                 # 记录结果
                 position_save_arr = self.add_head_to_xy(inital_map_xy, time_arr)
                 # self.print_mag_position_msg(self.add_head_to_xy(inital_map_xy, time_arr))
-                # print("Initial Transfer = ", transfer)
-                # print("Initial Loss = ", inital_loss)
+                print("Initial Transfer = ", transfer)
+                print("Initial Loss = ", inital_loss)
                 continue
 
             if self.state == MagPositionState.STABLE_RUNNING:
@@ -170,7 +175,7 @@ class MagPositionThread(threading.Thread):
                         # out_data_queue.put('END')
                         # out_data_queue.put(np.array(pdr_index_list))
                         # self.write_data_to_sock_file('END')
-                        # print('END')
+                        print('END')
                         break
 
                     last_data = window_buffer[len(window_buffer) - 1]
@@ -206,7 +211,7 @@ class MagPositionThread(threading.Thread):
                         # out_data_queue.put(new_xy)
                         # self.write_data_to_sock_file(self.add_head_to_xy(new_xy))
                         # 记录地磁定位结果
-                        position_save_arr = np.vstack((position_save_arr, self.add_head_to_xy(new_xy, time_arr)))
+                        position_save_arr = np.vstack((position_save_arr, self.add_head_to_xy(new_xy, time_arr[len(time_arr)-len(new_xy):len(time_arr)])))
                         # self.print_mag_position_msg(self.add_head_to_xy(new_xy, time_arr))
                         # print("transfer = ", transfer)
                         # print("window points number = ", len(window_buffer))

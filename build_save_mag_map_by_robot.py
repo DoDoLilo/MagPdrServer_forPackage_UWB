@@ -116,7 +116,7 @@ if __name__ == '__main__':
                     sync_data = SRI.sync_robot_pos_and_imu_data(gt_imu_offset_arr[line_index][0],
                                                                 gt_imu_offset_arr[line_index][1],
                                                                 float(gt_imu_offset_arr[line_index][2]))
-                    for row in sync_data:
+                    for row in sync_data[5:len(sync_data)]:
                         gt_imu_sync_data.append(row)
             gt_imu_sync_data = np.array(gt_imu_sync_data, dtype=float)
 

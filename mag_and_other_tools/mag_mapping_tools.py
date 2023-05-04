@@ -927,7 +927,7 @@ def produce_transfer_candidates_and_search(start_transfer, area_config,
                     last_loss_xy_tf_num = [loss, map_xy, transfer, iter_num]
                     if search_pattern == SearchPattern.BREAKE_ADVANCED_AND_USE_LAST_WHEN_FAILED \
                             or search_pattern == SearchPattern.BREAKE_ADVANCED_AND_USE_SECOND_LOSS_WHEN_FAILED:
-                        # print("\t\t.search Succeed and break in advanced. Final loss = ", loss)
+                        print("\t\t.search Succeed and break in advanced. Final loss = ", loss)
 
                         # TEST
                         # print("Start transfer = ",
@@ -967,7 +967,7 @@ def produce_transfer_candidates_and_search(start_transfer, area_config,
             candidates_loss_xy_tf.append(last_loss_xy_tf_num)
     # 如果选择了提前结束，但是到了这一步，表示寻找失败
     if search_pattern == SearchPattern.BREAKE_ADVANCED_AND_USE_LAST_WHEN_FAILED:
-        # print("\t\t.Failed search, use last transfer. Final loss = ", loss)
+        print("\t\t.Failed search, use last transfer. Final loss = ", loss)
         return start_transfer, transfer_axis_of_xy_seq(match_seq, start_transfer)
 
     # if search_pattern == SearchPattern.FULL_DEEP or BREAKE_ADVANCED_AND_USE_SECOND_LOSS_WHEN_FAILED:
@@ -984,10 +984,10 @@ def produce_transfer_candidates_and_search(start_transfer, area_config,
 
     if transfer is None or (
             search_pattern == SearchPattern.BREAKE_ADVANCED_AND_USE_SECOND_LOSS_WHEN_FAILED and min_loss > target_loss * 2):
-        # print("\t\t.Failed search, use last transfer.Final loss = ", min_loss)
+        print("\t\t.Failed search, use last transfer.Final loss = ", min_loss)
         return start_transfer, transfer_axis_of_xy_seq(match_seq, start_transfer)
     else:
-        # print("\t\t.Found min, final loss = ", min_loss)
+        print("\t\t.Found min, final loss = ", min_loss)
         return transfer, min_xy
 
 
@@ -1051,7 +1051,8 @@ def inital_full_deep_search(entrances, match_seq,
         else:
             # 将match_seq减掉末尾的1m后继续匹配，如果减到0米仍不行，则认为存在问题，返回全None
             abondon_num = cal_dis_num_from_tail(match_seq, reduce_dis)
-            if abondon_num == len(match_seq):
+            # print(abondon_num, ',', len(match_seq))
+            if abondon_num >= len(match_seq) or abondon_num == 0:
                 return None, None, None
             match_seq = match_seq[0:len(match_seq) - abondon_num, :]
             print('初始匹配段减1米')

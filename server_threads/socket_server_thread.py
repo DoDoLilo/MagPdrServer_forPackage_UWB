@@ -21,6 +21,8 @@ class SocketServerThread(threading.Thread):
         self.user_phone = 000  # 最后定位的用户身份（手机号）
         self.cur_socket_connection = None  # 保存当前正在连接的socket连接
         self.cur_socket_file = None  # 用当前socket连接创建的文件流
+        self.server_response = "MMPS\n"
+        self.last_data_time = int(0)
 
     def run(self) -> None:
         self.socket_server_thread()
@@ -52,6 +54,10 @@ class SocketServerThread(threading.Thread):
                 self.cur_socket_connection = sock
                 self.cur_socket_file = sock.makefile(mode='r')
                 print('Accept new connection from %s:%s...' % addr)
+
+                # TODO 往socket里写一个响应消息
+                self.cur_socket_connection.send(self.server_response.encode('utf-8'))
+
                 t = threading.Thread(target=self.socket_data_reciver)
                 t.start()
         except Exception as e:
@@ -84,10 +90,15 @@ class SocketServerThread(threading.Thread):
                         self.user_phone = int(line)
                         print("user phone = ", self.user_phone)
                         continue
+                    else:
+                        # 第一行不是手机号，要根据间隔时间判断是否是两次定位，避免手机号丢失的情况
+                        cur_time = int(float(line.split(',')[0]))
+                        if cur_time - self.last_data_time > int(60*1000):
+                            self.out_data_queue.put("END")
 
-                # 第一行不是手机号，就是接着上次的IMU数据
                 str_list = line.split(',')
                 float_list = [int(float(str_list[0]))]
+                self.last_data_time = float_list[0]
                 for s in str_list[1:]:
                     float_list.append(float(s))
                 self.out_data_queue.put(float_list)

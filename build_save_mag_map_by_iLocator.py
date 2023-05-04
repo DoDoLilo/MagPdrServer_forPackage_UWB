@@ -61,9 +61,6 @@ if __name__ == '__main__':
     if FT.file_name_end_with(file_list_path, FT.FileEnd.CSV.value) and FT.file_is_exist(file_list_path):
         # 读出file_list文件中的内容[N][ilocator.csv, imu_file.csv, offset]
         gt_imu_offset_arr = np.loadtxt(file_list_path, delimiter=",", dtype=str)
-        if gt_imu_offset_arr.ndim == 1:
-            # 只有一行记录，读出来的数组变成1维了，需要扩展为二维
-            gt_imu_offset_arr = gt_imu_offset_arr[np.newaxis, :]
         # 如果清单文件中不存在可用记录（len=0），则认为“建库失败”。
         line_num = len(gt_imu_offset_arr)
         if line_num == 0:

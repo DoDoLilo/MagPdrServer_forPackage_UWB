@@ -46,17 +46,17 @@ def read_robot_result(robot_txt_file):
 def sync_robot_pos_and_imu_data(robot_txt_file, imu_csv_file, offset):
     # 调用read_robot_result()获取[ms, robot_x, robot_y]
     robot_data_list = read_robot_result(robot_txt_file)
-    imu_data_list = np.loadtxt(imu_csv_file, delimiter=',')
+    imu_data_arr = np.loadtxt(imu_csv_file, delimiter=',')
 
     # 机器人位置频率更低，将手机imu数据合并到机器人那边，以保证文件不会过大!
     imu_index = 0
-    imu_len = len(imu_data_list)
+    imu_len = len(imu_data_arr)
     sync_data_list = []
 
     for robot_line in robot_data_list:
         imu_time = robot_line[0] + offset
         # 在imu数据中找到对应时间
-        while imu_index < imu_len and float(imu_data_list[imu_index][0]) < imu_time:
+        while imu_index < imu_len and float(imu_data_arr[imu_index][0]) < imu_time:
             imu_index += 1
 
         if imu_index < imu_len:
@@ -64,7 +64,7 @@ def sync_robot_pos_and_imu_data(robot_txt_file, imu_csv_file, offset):
             temp_data = []
             for d1 in robot_line:
                 temp_data.append(d1)
-            for d2 in imu_data_list[imu_index][1:]:
+            for d2 in imu_data_arr[imu_index][1:]:
                 temp_data.append(float(d2))
             sync_data_list.append(temp_data)
         else:
@@ -73,15 +73,16 @@ def sync_robot_pos_and_imu_data(robot_txt_file, imu_csv_file, offset):
     return sync_data_list
 
 
-# robot_test_txt = "D:/pythonProjects/MagPdrServer_forPackage/test/robot_data_test/robot_test_data.txt"
+# robot_test_txt = "D:\pythonProjects\MagPdrServer_forPackage\\test\\robot_data_test\\robot_result.txt"
 # imu_test_csv = "D:/pythonProjects/MagPdrServer_forPackage/test/robot_data_test/imu_fake_test_data.csv"
-#
+
 # robot_data = read_robot_result(robot_test_txt)
 # print("robot data:")
 # print(len(robot_data), ',', len(robot_data[0]))
+# np.savetxt("D:\pythonProjects\MagPdrServer_forPackage\\test\\robot_data_test\\robot_xy.csv", robot_data, delimiter=',')
 # for d in robot_data:
 #     print(d)
-#
+
 # sync_data = sync_robot_pos_and_imu_data(robot_test_txt, imu_test_csv, 0)
 # print(len(sync_data), ',', len(sync_data[0]))
 # print(len(sync_data[0]))
