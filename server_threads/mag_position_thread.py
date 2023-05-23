@@ -133,7 +133,7 @@ class MagPositionThread(threading.Thread):
                 inital_transfer, inital_map_xy, inital_loss = MMT.inital_full_deep_search(
                     entrance_list, match_seq,
                     self.mag_map, self.BLOCK_SIZE,
-                    self.ITER_STEP, self.MAX_ITERATION, self.UPPER_LIMIT_OF_GAUSSNEWTEON
+                    self.ITER_STEP, self.MAX_ITERATION, self.TARGET_MEAN_LOSS
                 )
 
                 if inital_transfer is None:

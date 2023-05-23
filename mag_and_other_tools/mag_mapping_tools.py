@@ -1003,7 +1003,7 @@ def produce_transfer_candidates_and_search(start_transfer, area_config,
 #      match_seq:待匹配的序列[N][x,y, mv, mh]
 def inital_full_deep_search(entrances, match_seq,
                             mag_map, block_size,
-                            step, max_iteration, upper_limit_of_gaussnewteon,
+                            step, max_iteration, target_loss,
                             reduce_dis=1):
     max_iteration += 1
     # 从多个入口中找出loss最小的transfer
@@ -1031,8 +1031,8 @@ def inital_full_deep_search(entrances, match_seq,
                 out_of_map, start_loss, not_use_map_xy, not_use_transfer = cal_new_transfer_and_last_loss_xy(
                     transfer, match_seq, mag_map, block_size, step)
 
-                if out_of_map or (min_loss is not None and start_loss - min_loss > upper_limit_of_gaussnewteon):
-                    # 预估start_loss无法到达当前的min_loss，不用继续迭代了，直接下一个candidate
+                if out_of_map:
+                    # 出界
                     continue
 
                 for iter_num in range(1, max_iteration):
@@ -1046,7 +1046,8 @@ def inital_full_deep_search(entrances, match_seq,
                     else:
                         break
 
-        if min_transfer is not None:
+        if min_transfer is not None or min_loss < target_loss:
+            # 非空且非空的结果在目标loss之内，则认为初始化搜索成功
             break
         else:
             # 将match_seq减掉末尾的1m后继续匹配，如果减到0米仍不行，则认为存在问题，返回全None
@@ -1099,7 +1100,6 @@ def change_pdr_thread_data_to_match_seq(pdr_data_buffer, down_sip_dis, lowpass_l
         match_seq_arr[pi][4] = pdr_data_buffer[pi][3]  # pdr_index
 
         match_seq_arr[pi][5] = pdr_data_buffer[pi][0]  # time
-
 
     # 下采样，过程中记录i_mid对应的pdr原始下标
     match_seq_list = []

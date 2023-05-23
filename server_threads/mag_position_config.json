@@ -29,7 +29,7 @@
   "MaxIteration": 90, //高斯牛顿最大迭代次数
   "TargetMeanLoss": 10, //目标损失
   "IterStep": 0.02, //迭代步长，牛顿高斯迭代是局部最优，步长要小
-  "UpperLimitOfGaussNewteon": 1,  //当前参数下高斯牛顿迭代MAX_ITERATION的能降低的loss上限 = UpperLimitOfGaussNewteon * MaxIteration
+  "UpperLimitOfGaussNewteon": 8,  //当前参数下高斯牛顿迭代MAX_ITERATION的能降低的loss上限 = UpperLimitOfGaussNewteon * MaxIteration
   //---------其他参数------------------------
   "EmdFilterLevel": 3,  //低通滤波的程度，值越大滤波越强。整型，无单位。
   "TransfersProduceConfig": [[0.25, 0.25, 1.5], //枚举transfers的参数，[0] = [△x, △y(米), △angle(角度) 读取时要转为弧度]
