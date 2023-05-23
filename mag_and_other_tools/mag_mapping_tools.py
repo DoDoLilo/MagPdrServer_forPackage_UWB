@@ -1046,7 +1046,7 @@ def inital_full_deep_search(entrances, match_seq,
                     else:
                         break
 
-        if min_transfer is not None or min_loss < target_loss:
+        if min_transfer is not None and min_loss < target_loss:
             # 非空且非空的结果在目标loss之内，则认为初始化搜索成功
             break
         else:
