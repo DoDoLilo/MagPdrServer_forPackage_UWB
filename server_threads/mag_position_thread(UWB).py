@@ -4,7 +4,6 @@ import math
 import numpy as np
 import mag_and_other_tools.mag_mapping_tools as MMT
 
-
 # 地磁定位线程，状态枚举类
 class MagPositionState(Enum):
     INITIALIZING = 0  # 初始化状态：从BROKEN态转来，正处于初始固定区域遍历
@@ -16,6 +15,21 @@ class MagPositionState(Enum):
 # 初始态：清空历史数据，当容器中的数据量达到initial_dis则调用初始遍历算法
 # 运行态：基于之前的transfer进行计算
 class MagPositionThread(threading.Thread):
+    def get_startXyList_and_angleRange_by_UWBxy(self, s_uwb_xy, e_uwb_xy, match_seq):
+        # TODO，增加UWB坐标信息，但不编写如何接收UWB坐标的逻辑，这个让他们集成、or编写，
+        #  增加坐标转换功能，获取滑窗首尾UWB坐标，起点构造一定BFS范围后，作为entrances_list，
+        #  然后计算首尾坐标和PDR首尾坐标的夹角，以该角度为中心、设定inital_full_search的搜索角度范围（注意角度是顺时针还是逆时针）
+        #  然后在运行态时RUNNING，要不断检测UWB_xy_queue是否满足条件，重新进行上述步骤，计算新的transfer（不切换回STOP状态，否则滑窗数据要丢）
+
+
+        # adjust_trajs_by_marks_2.py中的 计算两直线的 始末点向量 夹角
+        vector_pdr = end_pdr_xy[0] - start_pdr_xy[0], end_pdr_xy[1] - start_pdr_xy[1]
+        vector_uwb = end_mark_xy[0] - start_mark_xy[0], end_mark_xy[1] - start_mark_xy[1]
+        angle_off = two_slope_angle_off(vector_pdr, vector_uwb)
+        # TODO angle_off就是transfer中的angle（直接用），用它构造angle range
+
+
+        return [], []
     def __init__(self, in_data_queue, out_data_queue, configurations, socket_server_thread):
         super(MagPositionThread, self).__init__()
         # 初始化各种参数
@@ -36,7 +50,8 @@ class MagPositionThread(threading.Thread):
         # --------迭代搜索参数----------------------
         self.SLIDE_STEP = configurations.SlideStep  # 滑动窗口步长
         self.SLIDE_BLOCK_SIZE = configurations.SlideBlockSize  # 滑动窗口最小粒度（m），>=DOWN_SIP_DIS！
-        self.MAX_ITERATION = configurations.MaxIteration  # 高斯牛顿最大迭代次数
+        # self.MAX_ITERATION = configurations.MaxIteration  # 高斯牛顿最大迭代次数
+        self.MAX_ITERATION = 5  # 高斯牛顿最大迭代次数
         self.TARGET_MEAN_LOSS = configurations.TargetMeanLoss  # 目标损失
         self.ITER_STEP = configurations.IterStep  # 迭代步长，牛顿高斯迭代是局部最优，步长要小
         # self.UPPER_LIMIT_OF_GAUSSNEWTEON = configurations.UpperLimitOfGaussNewteon  # 当前参数下高斯牛顿迭代MAX_ITERATION的能降低的loss上限
@@ -101,6 +116,8 @@ class MagPositionThread(threading.Thread):
                 # 从数据输入流中取地足够初始遍历的数据。注意如果过程中遇到END，则回到STOP状态
                 while distance < self.INITAIL_BUFFER_DIS:
                     cur_data = in_data_queue.get()
+                    # TODO 如果cur_data的时间戳要早于UWB_queue中的最早UWB坐标，则舍弃！
+                    #  in_data_queue中获取pdr_thread输出的 [time, [pdr_x, y], [10*[mag x, y, z]]]
                     if isinstance(cur_data, str) and cur_data == 'END':
                         self.state = MagPositionState.STOP
                         print("END recived.")
@@ -131,8 +148,13 @@ class MagPositionThread(threading.Thread):
                 pdr_index_list.extend(pdr_index_arr)
 
                 # 调用初始化固定区域搜索
-                inital_transfer, inital_map_xy, inital_loss = MMT.inital_full_deep_search(
-                    entrance_list, match_seq,
+                # inital_transfer, inital_map_xy, inital_loss = MMT.inital_full_deep_search(
+                #     entrance_list, match_seq,
+                #     self.mag_map, self.BLOCK_SIZE,
+                #     self.ITER_STEP, self.MAX_ITERATION, self.TARGET_MEAN_LOSS
+                # )
+                inital_transfer, inital_map_xy, inital_loss = MMT.inital_full_deep_search_with_angleRange(
+                    entrance_list, [],match_seq,
                     self.mag_map, self.BLOCK_SIZE,
                     self.ITER_STEP, self.MAX_ITERATION, self.TARGET_MEAN_LOSS
                 )

@@ -1013,7 +1013,67 @@ def inital_full_deep_search(entrances, match_seq,
 
     # 构建0-360°，1.°粒度的transfer
     transfer_candidates = []
-    for angle in np.arange(0, 360, 0.5):
+    for angle in np.arange(0, 360, 2):
+        transfer_candidates.append([0, 0, math.radians(angle)])
+
+    start_x = match_seq[0][0]
+    start_y = match_seq[0][1]
+
+    while True:
+        for entrance in entrances:
+            for transfer_candidate in transfer_candidates:
+                # 先将xy轨迹变换到entrance坐标，不修改原来的match_seq
+                # 构建transfer，先用transfer_candidate旋转start_x,y，然后将旋转后的点平移到entrance，该平移量+旋转角度=transfer
+                new_xy = transfer_axis_of_xy_seq([[start_x, start_y]], transfer_candidate)
+                transfer = np.array([entrance[0] - new_xy[0][0], entrance[1] - new_xy[0][1], transfer_candidate[2]])
+
+                # 将该start_transfer应用到match_seq_copy，进行高斯牛顿迭代，找到最小loss
+                out_of_map, start_loss, not_use_map_xy, not_use_transfer = cal_new_transfer_and_last_loss_xy(
+                    transfer, match_seq, mag_map, block_size, step)
+
+                if out_of_map:
+                    # 出界
+                    continue
+
+                for iter_num in range(1, max_iteration):
+                    out_of_map, loss, map_xy, next_transfer = cal_new_transfer_and_last_loss_xy(
+                        transfer, match_seq, mag_map, block_size, step)  # 该函数不会修改match_seq
+                    if not out_of_map:
+                        transfer = next_transfer  # 继续迭代
+                        if min_loss is None or loss < min_loss:
+                            min_loss = loss
+                            min_transfer = transfer.copy()
+                    else:
+                        break
+
+        if min_transfer is not None and min_loss < target_loss:
+            # 非空且非空的结果在目标loss之内，则认为初始化搜索成功
+            break
+        else:
+            # 将match_seq减掉末尾的1m后继续匹配，如果减到0米仍不行，则认为存在问题，返回全None
+            abondon_num = cal_dis_num_from_tail(match_seq, reduce_dis)
+            # print(abondon_num, ',', len(match_seq))
+            if abondon_num >= len(match_seq) or abondon_num == 0:
+                return None, None, None
+            match_seq = match_seq[0:len(match_seq) - abondon_num, :]
+            print('初始匹配段减1米')
+            # del match_seq[len(match_seq) - abondon_num: len(match_seq)]
+
+    return min_transfer, transfer_axis_of_xy_seq(match_seq_backup, min_transfer), min_loss
+
+def inital_full_deep_search_with_angleRange(entrances, angleRange, match_seq,
+                            mag_map, block_size,
+                            step, max_iteration, target_loss,
+                            reduce_dis=1):
+    max_iteration += 1
+    # 从多个入口中找出loss最小的transfer
+    match_seq_backup = match_seq.copy()
+    min_loss = None
+    min_transfer = None
+
+    # 构建0-360°，1.°粒度的transfer
+    transfer_candidates = []
+    for angle in np.arange(0, 360, 2):
         transfer_candidates.append([0, 0, math.radians(angle)])
 
     start_x = match_seq[0][0]

@@ -35,6 +35,8 @@ def mag_position_server_start(config_json_file):
     mag_position_input_queue = pdr_output_queue
     mag_position_output_queue = queue.Queue()
 
+    # TODO 在这里增加接收、存储、传递UWB定位结果的队列，加到mag_position_thread中
+
     # 定义线程
     socket_server_thread = SocketServerThread(socket_output_queue, configurations)
     pdr_thread = PdrThread(pdr_input_queue, pdr_output_queue, configurations)
