@@ -14,30 +14,40 @@ class MagPositionState(Enum):
 # 地磁定位 守护线程：检查公共数据容器中的数据，并根据数据进行状态转移、定位计算
 # 初始态：清空历史数据，当容器中的数据量达到initial_dis则调用初始遍历算法
 # 运行态：基于之前的transfer进行计算
-class MagPositionThread(threading.Thread):
-    def get_startXyList_and_angleRange_by_UWBxy(self, s_uwb_xy, e_uwb_xy, match_seq):
+class MagPositionThread_UWB(threading.Thread):
+    def two_slope_angle_off(self, v1, v2):
+        # 方向向量
+        x1, y1 = v1
+        x2, y2 = v2
+        det = x1 * y2 - y1 * x2
+        dot = x1 * x2 + y1 * y2
+        theta = np.arctan2(det, dot)
+        theta = theta if theta > 0 else 2 * np.pi + theta
+        return theta
+    def get_startXyList_and_angleRange_by_UWBxy(self, start_pdr_xy, end_pdr_xy,start_uwb_xy, end_uwb_xy):
         # TODO，增加UWB坐标信息，但不编写如何接收UWB坐标的逻辑，这个让他们集成、or编写，
         #  增加坐标转换功能，获取滑窗首尾UWB坐标，起点构造一定BFS范围后，作为entrances_list，
         #  然后计算首尾坐标和PDR首尾坐标的夹角，以该角度为中心、设定inital_full_search的搜索角度范围（注意角度是顺时针还是逆时针）
-        #  然后在运行态时RUNNING，要不断检测UWB_xy_queue是否满足条件，重新进行上述步骤，计算新的transfer（不切换回STOP状态，否则滑窗数据要丢）
-
-
         # adjust_trajs_by_marks_2.py中的 计算两直线的 始末点向量 夹角
         vector_pdr = end_pdr_xy[0] - start_pdr_xy[0], end_pdr_xy[1] - start_pdr_xy[1]
-        vector_uwb = end_mark_xy[0] - start_mark_xy[0], end_mark_xy[1] - start_mark_xy[1]
-        angle_off = two_slope_angle_off(vector_pdr, vector_uwb)
+        vector_uwb = end_uwb_xy[0] - start_uwb_xy[0], end_uwb_xy[1] - start_uwb_xy[1]
+        angle_off = self.two_slope_angle_off(vector_pdr, vector_uwb)
         # TODO angle_off就是transfer中的angle（直接用），用它构造angle range
+        move_config = [[0.3, 0.3], [2, 2]]  # 枚举间隔、正负数量，类似TransfersProduceConfig
+        entrance_list = MMT.produce_entrance_candidates_ascending(start_uwb_xy, move_config) # 为什么？因为UWBxy存在一定误差范围
+        angle_range = [angle_off-22, angle_off+22]
+        return entrance_list, angle_range
 
-
-        return [], []
-    def __init__(self, in_data_queue, out_data_queue, configurations, socket_server_thread):
-        super(MagPositionThread, self).__init__()
+    def __init__(self, in_data_queue, out_data_queue, configurations, socket_server_thread, in_uwbXy_queue):
+        super(MagPositionThread_UWB, self).__init__()
         # 初始化各种参数
         self.state = MagPositionState.STOP
         self.in_data_queue = in_data_queue
         self.out_data_queue = out_data_queue
         # self.out_data_sock_file = configurations.LocalSocketMagposition.makefile(mode='w')
         self.socket_server_thread = socket_server_thread
+        # +UWB, list[毫秒时间戳，uwb_x, uwb_y]
+        self.in_uwbXy_queue = in_uwbXy_queue
 
         # 从配置文件中读取各种参数，并赋予成员变量
         # -----------定位结果文件保存路径------------------------
@@ -84,7 +94,7 @@ class MagPositionThread(threading.Thread):
         self.mag_position_thread(self.in_data_queue, self.out_data_queue, self.ENTRANCE_LIST)
 
     # 输入：容器引用、地图坐标系参数（左下角、右上角坐标）、地图所有被平移到指纹库坐标系的入口坐标
-    # 从in_data_queue中获取pdr_thread输出的 [time, [pdr_x, y], [10*[mag x, y, z]]]
+    # 从in_data_queue中获取pdr_thread输出的 [time, [pdr_x, y], [10*[mag x, y, z, quat x, y, z, w]], pdr_index]
     # 往out_data_list中放入[time, [mag_position_x,y]]
     def mag_position_thread(self, in_data_queue, out_data_queue, entrance_list) -> None:
         transfer = None
@@ -112,17 +122,28 @@ class MagPositionThread(threading.Thread):
                 pdr_index_list = []
                 window_start = False
                 distance = 0
+                # TODO 从 self.in_uwbXy_queue中获取第一个uwb_xy，queue.get()默认阻塞直到获得uwb_xy。获取不到，则一直阻塞？No，设定最大时间（5秒）
+                try:
+                    start_uwb_pos = self.in_uwbXy_queue.get(block=True, timeout=5)  # list[毫秒时间戳，uwb_x, uwb_y]
+                    start_uwb_time = start_uwb_pos[0]
+                except Exception as e:
+                    print("No UWB xy in 5 seconds")
+                    self.state = MagPositionState.STOP
+                    continue
 
                 # 从数据输入流中取地足够初始遍历的数据。注意如果过程中遇到END，则回到STOP状态
                 while distance < self.INITAIL_BUFFER_DIS:
-                    cur_data = in_data_queue.get()
-                    # TODO 如果cur_data的时间戳要早于UWB_queue中的最早UWB坐标，则舍弃！
-                    #  in_data_queue中获取pdr_thread输出的 [time, [pdr_x, y], [10*[mag x, y, z]]]
+                    cur_data = in_data_queue.get()  # [time, [pdr_x, y], [10*[mag x, y, z, quat x, y, z, w]], pdr_index]
                     if isinstance(cur_data, str) and cur_data == 'END':
                         self.state = MagPositionState.STOP
                         print("END recived.")
                         # print("state is:", self.state)
                         break
+
+                    # TODO 将cur_data.time早于start_uwb_time的所有数据舍弃
+                    cur_time = cur_data[0]
+                    if cur_time < start_uwb_time:
+                        continue  # 继续循环
 
                     last_data = inital_data_buffer[len(inital_data_buffer) - 1]
                     inital_data_buffer.append(cur_data)
@@ -139,12 +160,39 @@ class MagPositionThread(threading.Thread):
                 if self.state == MagPositionState.STOP:
                     continue
 
+                # TODO 初始窗口填补完毕 + 已有窗口起点UWB坐标
+                #  此时需要获取窗口末尾UWB坐标（从self.in_uwbXy_queue中获得第一个时间戳大于磁场坐标的UWB数据），获取不到，则一直阻塞？No，设定最大时间3秒。
+                find_end_uwb_xy = False
+                while not find_end_uwb_xy:
+                    try:
+                        end_uwb_pos = self.in_uwbXy_queue.get(block=True, timeout=5)  # list[毫秒时间戳，uwb_x, uwb_y]
+                        end_uwb_time = end_uwb_pos[0]
+                        if end_uwb_time >= window_buffer[-2][0]:
+                            find_end_uwb_xy = True
+                    except Exception as e:
+                        print("No UWB xy in 3 seconds")
+                        self.state = MagPositionState.STOP
+                        # 初始化数据准备失败！
+                        break
+
+                # TODO 注意跟上面一样加这个，否则会继续初始化
+                if self.state == MagPositionState.STOP:
+                    continue
+
+                start_pdr_xy = [window_buffer[0][1][0], window_buffer[0][1][1]]  # TODO 数组引用精确到最后一位，否则为地址，可能出现问题。
+                end_pdr_xy = [window_buffer[-1][1][0], window_buffer[-1][1][1]]
+                start_uwb_xy = [start_uwb_pos[1], start_uwb_pos[2]]
+                end_uwb_xy = [end_uwb_pos[1], end_uwb_pos[2]]
+                # TODO 准备好了首尾UWB xy，计算PDR和UWB夹角 -> 给出大概的搜索角范围，
+                #  start_uwb_xy替换为entrance_list中的entrance[x,y]，执行inital_full_deep_search_with_angleRange
+                entrance_list, angle_range = self.get_startXyList_and_angleRange_by_UWBxy(start_pdr_xy, end_pdr_xy, start_uwb_xy, end_uwb_xy)
+
                 # 初始化搜索成功，状态转移至稳定搜索阶段，*而pdr坐标，并不需要使用move xy!都会包含在transfer里面
                 # 预处理pdr发送过来的数据，将[N][time, [pdr_x, y], [10*[mag x, y, z, quat x, y, z, w]], pdr_index]变为
                 # 下采样后的[N][x,y, mv, mh] [N][pdr_index] [N][xy_time]
                 match_seq, pdr_index_arr, time_arr = MMT.change_pdr_thread_data_to_match_seq(inital_data_buffer,
-                                                                                   self.DOWN_SIP_DIS,
-                                                                                   self.EMD_FILTER_LEVEL)
+                                                                                             self.DOWN_SIP_DIS,
+                                                                                             self.EMD_FILTER_LEVEL)
                 pdr_index_list.extend(pdr_index_arr)
 
                 # 调用初始化固定区域搜索
@@ -153,8 +201,9 @@ class MagPositionThread(threading.Thread):
                 #     self.mag_map, self.BLOCK_SIZE,
                 #     self.ITER_STEP, self.MAX_ITERATION, self.TARGET_MEAN_LOSS
                 # )
+                # TODO 增加angleRange
                 inital_transfer, inital_map_xy, inital_loss = MMT.inital_full_deep_search_with_angleRange(
-                    entrance_list, [],match_seq,
+                    entrance_list, angle_range,match_seq,
                     self.mag_map, self.BLOCK_SIZE,
                     self.ITER_STEP, self.MAX_ITERATION, self.TARGET_MEAN_LOSS
                 )
@@ -179,6 +228,10 @@ class MagPositionThread(threading.Thread):
                 print("Initial Loss = ", inital_loss)
                 continue
 
+
+            # =========================================================================================================
+            # --------------------------------初始化后的稳定运行态--------------------------------------------------------
+            # TODO 在运行态时RUNNING，要不断检测UWB_xy_queue是否满足条件，计算新的transfer（不切换回STOP状态，否则滑窗数据要丢）
             if self.state == MagPositionState.STABLE_RUNNING:
                 # 稳定运行态
                 #  此时 每往window_buffer中放入DOWN_SIP_DIS长度的数据，则调用一次匹配算法，并将结果只应用到新加的那段坐标
@@ -220,6 +273,42 @@ class MagPositionThread(threading.Thread):
                                 break
 
                         start_transfer = transfer.copy()
+
+                        # TODO 滑窗前后有对应的UWB xy就用，否则就不用；注意此时取UWBxy的block时间要短，而且抛异常也不影响运行、状态变化
+                        find_start_uwb_xy = False
+                        while not find_start_uwb_xy:
+                            try:
+                                start_uwb_pos = self.in_uwbXy_queue.get(block=True, timeout=0.5)
+                                start_uwb_time = start_uwb_pos[0]
+                                if start_uwb_time >= window_buffer[0][0]:
+                                    find_start_uwb_xy = True
+                            except Exception as e:
+                                break
+
+                        find_end_uwb_xy = False
+                        while not find_end_uwb_xy:
+                            try:
+                                end_uwb_pos = self.in_uwbXy_queue.get(block=True, timeout=0.5)  # list[毫秒时间戳，uwb_x, uwb_y]
+                                end_uwb_time = end_uwb_pos[0]
+                                if end_uwb_time >= window_buffer[-2][0]:
+                                    find_end_uwb_xy = True
+                            except Exception as e:
+                                break
+
+                        if find_start_uwb_xy and find_end_uwb_xy:
+                            # TODO 找到了首尾uwb坐标，那就根据这个重置start_transfer
+                            start_pdr_xy = [window_buffer[0][1][0], window_buffer[0][1][1]]  # TODO 数组引用精确到最后一位，否则为地址，可能出现问题。
+                            end_pdr_xy = [window_buffer[-1][1][0], window_buffer[-1][1][1]]
+                            start_uwb_xy = [start_uwb_pos[1], start_uwb_pos[2]]
+                            end_uwb_xy = [end_uwb_pos[1], end_uwb_pos[2]]
+                            # TODO start_transfer的偏移量
+                            start_transfer[0] = start_uwb_xy[0]-start_pdr_xy[0]
+                            start_transfer[1] = start_uwb_xy[1]-start_pdr_xy[1]
+                            # TODO start_transfer的旋转量，夹角
+                            vector_pdr = end_pdr_xy[0] - start_pdr_xy[0], end_pdr_xy[1] - start_pdr_xy[1]
+                            vector_uwb = end_uwb_xy[0] - start_uwb_xy[0], end_uwb_xy[1] - start_uwb_xy[1]
+                            start_transfer[2] = self.two_slope_angle_off(vector_pdr, vector_uwb)
+
                         transfer, map_xy = MMT.produce_transfer_candidates_and_search(start_transfer,
                                                                                       self.TRANSFERS_PRODUCE_CONFIG,
                                                                                       match_seq, self.mag_map,

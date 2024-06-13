@@ -876,6 +876,42 @@ def produce_transfer_candidates_ascending(original_transfer, config):
 
     return np.array(transfer_candidates)
 
+def produce_entrance_candidates_ascending(start_uwb_xy, config):
+    entrance_candidates = []
+    x_candidates = []
+    y_candidates = []
+
+    # for循环增减次数次，向各个参数list中添加
+    x_candidates.append(start_uwb_xy[0])
+    for tx in range(1, config[1][0]):
+        x_candidates.append(start_uwb_xy[0] + tx * config[0][0])
+        x_candidates.append(start_uwb_xy[0] - tx * config[0][0])
+
+    y_candidates.append(start_uwb_xy[1])
+    for ty in range(1, config[1][1]):
+        y_candidates.append(start_uwb_xy[1] + ty * config[0][1])
+        y_candidates.append(start_uwb_xy[1] - ty * config[0][1])
+
+    # 将这些候选分量按变换距离升序重新排列组和。x,y,z_candidates内部已按升序
+    # 所以，以(i_x + i_y + i_angle)作为新组合的下标，
+    temp_list = []
+    len_x = len(x_candidates)
+    len_y = len(y_candidates)
+
+    for i_t in range(0, len_x + len_y):
+        temp_list.append([])
+
+    for i_x in range(0, len_x):
+        for i_y in range(0, len_y):
+            temp_list[i_x + i_y].append([x_candidates[i_x], y_candidates[i_y]])
+
+    # 将temp_list中的范围升序结果提取到transfer_candidates中。NOTE：len(temp_list[i])不全相等！
+    for temp in temp_list:
+        for t in temp:
+            entrance_candidates.append(t)
+
+    return np.array(entrance_candidates)
+
 
 class SearchPattern(Enum):
     FULL_DEEP = 0
@@ -1071,9 +1107,9 @@ def inital_full_deep_search_with_angleRange(entrances, angleRange, match_seq,
     min_loss = None
     min_transfer = None
 
-    # 构建0-360°，1.°粒度的transfer
+    # 按照angleRange遍历角度
     transfer_candidates = []
-    for angle in np.arange(0, 360, 2):
+    for angle in np.arange(min(angleRange), max(angleRange), 2):
         transfer_candidates.append([0, 0, math.radians(angle)])
 
     start_x = match_seq[0][0]

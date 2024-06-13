@@ -2,7 +2,8 @@
 # 声明公共数据容器，
 # DI到 socket线程、pdr线程、magPdr线程，三个“守护线程”
 # 并启动它们
-from server_threads.mag_position_thread import MagPositionThread
+# from server_threads.mag_position_thread import MagPositionThread
+from server_threads.mag_position_thread_UWB import MagPositionThread_UWB
 from server_threads.pdr_thread import PdrThread
 from server_threads.socket_server_thread import SocketServerThread
 from mag_and_other_tools.config_tools import SystemConfigurations
@@ -35,13 +36,18 @@ def mag_position_server_start(config_json_file):
     mag_position_input_queue = pdr_output_queue
     mag_position_output_queue = queue.Queue()
 
-    # TODO 在这里增加接收、存储、传递UWB定位结果的队列，加到mag_position_thread中
+    # TODO 在这里增加接收、存储、传递UWB定位结果的队列，传输到MagPositionThread_UWB中，
+    #  如果UWB提供的xy频率太低，则建议插值后再给这边，否则和PDRxy对应误差较大
+    #  ***注意提供的UWB xy必须和磁场指纹地图mag_map的坐标系统一！&& 已经补偿了和这边的IMU数据的时间差异
+    uwb_input_queue = queue.Queue()  # TODO 提供 list[毫秒时间戳，uwb_x, uwb_y]
 
     # 定义线程
     socket_server_thread = SocketServerThread(socket_output_queue, configurations)
     pdr_thread = PdrThread(pdr_input_queue, pdr_output_queue, configurations)
-    mag_position_thread = MagPositionThread(mag_position_input_queue, mag_position_output_queue,
-                                            configurations, socket_server_thread)
+    # mag_position_thread = MagPositionThread(mag_position_input_queue, mag_position_output_queue,
+    #                                         configurations, socket_server_thread)
+    mag_position_thread = MagPositionThread_UWB(mag_position_input_queue, mag_position_output_queue,
+                                            configurations, socket_server_thread, uwb_input_queue)
     # 启动线程
     socket_server_thread.start()
     pdr_thread.start()
