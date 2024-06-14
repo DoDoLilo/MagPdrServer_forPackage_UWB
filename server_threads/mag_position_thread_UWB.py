@@ -15,7 +15,7 @@ class MagPositionState(Enum):
 # 初始态：清空历史数据，当容器中的数据量达到initial_dis则调用初始遍历算法
 # 运行态：基于之前的transfer进行计算
 class MagPositionThread_UWB(threading.Thread):
-    # TODO 返回的是弧度，不是角度
+    # TODO 返回的是弧度，不是角度，transfer最终使用的是弧度，
     def two_slope_angle_off(self, v1, v2):
         # 方向向量
         x1, y1 = v1
@@ -36,7 +36,7 @@ class MagPositionThread_UWB(threading.Thread):
         # TODO angle_off就是transfer中的angle（直接用），用它构造angle range
         move_config = [[0.3, 0.3], [2, 2]]  # 枚举间隔、正负数量，类似TransfersProduceConfig
         entrance_list = MMT.produce_entrance_candidates_ascending(start_uwb_xy, move_config) # 为什么？因为UWBxy存在一定误差范围
-        angle_range = [math.degrees(angle_off)-22, math.degrees(angle_off)+22]  # TODO 注意这里使用的是角度，不是弧度
+        angle_range = [math.degrees(angle_off)-22, math.degrees(angle_off)+22]  # TODO 注意这里使用的是角度，不是弧度，因为这里还没到构造transfer的时候
         return entrance_list, angle_range
 
     def __init__(self, in_data_queue, out_data_queue, configurations, socket_server_thread, in_uwbXy_queue):
