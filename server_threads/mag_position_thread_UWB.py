@@ -15,6 +15,7 @@ class MagPositionState(Enum):
 # 初始态：清空历史数据，当容器中的数据量达到initial_dis则调用初始遍历算法
 # 运行态：基于之前的transfer进行计算
 class MagPositionThread_UWB(threading.Thread):
+    # TODO 返回的是弧度，不是角度
     def two_slope_angle_off(self, v1, v2):
         # 方向向量
         x1, y1 = v1
@@ -35,7 +36,7 @@ class MagPositionThread_UWB(threading.Thread):
         # TODO angle_off就是transfer中的angle（直接用），用它构造angle range
         move_config = [[0.3, 0.3], [2, 2]]  # 枚举间隔、正负数量，类似TransfersProduceConfig
         entrance_list = MMT.produce_entrance_candidates_ascending(start_uwb_xy, move_config) # 为什么？因为UWBxy存在一定误差范围
-        angle_range = [angle_off-22, angle_off+22]
+        angle_range = [math.degrees(angle_off)-22, math.degrees(angle_off)+22]  # TODO 注意这里使用的是角度，不是弧度
         return entrance_list, angle_range
 
     def __init__(self, in_data_queue, out_data_queue, configurations, socket_server_thread, in_uwbXy_queue):
@@ -107,11 +108,13 @@ class MagPositionThread_UWB(threading.Thread):
         while True:
             print("state is:", self.state)
             # 根据不同的状态对该数据做对应的处理
+            # ==========================================================================================================
+            # -------------------------初始化状态------------------------------------------------------------------------
             if self.state == MagPositionState.STOP:
                 # 重新开始
                 self.state = MagPositionState.INITIALIZING
 
-                cur_data = in_data_queue.get()
+                cur_data = in_data_queue.get()  # 阻塞直到有PDR与IMU数据来
                 if isinstance(cur_data, str) and cur_data == "END":
                     self.state = MagPositionState.STOP
                     continue
@@ -122,13 +125,29 @@ class MagPositionThread_UWB(threading.Thread):
                 pdr_index_list = []
                 window_start = False
                 distance = 0
-                # TODO 从 self.in_uwbXy_queue中获取第一个uwb_xy，queue.get()默认阻塞直到获得uwb_xy。获取不到，则一直阻塞？No，设定最大时间（5秒）
+                # TODO 从 self.in_uwbXy_queue中获取第一个uwb_xy，queue.get()默认阻塞直到获得uwb_xy。获取不到，则一直阻塞？No，设定最大时间（3秒）
+                #  根据“UWBS”丢弃其前面可能留下的上一次定位的、没使用的UWB坐标。
+                find_UWBS = False
+                while not find_UWBS:
+                    try:
+                        uwb_data = self.in_uwbXy_queue.get(block=True, timeout=3)
+                        if isinstance(uwb_data, str) and cur_data == 'UWBS':
+                            find_UWBS = True
+                    except Exception as e:
+                        print("No UWB xy in 3 seconds")
+                        self.state = MagPositionState.STOP
+                if self.state == MagPositionState.STOP:
+                    continue
+
+                # TODO 获取本次定位最开始的UWB坐标
                 try:
-                    start_uwb_pos = self.in_uwbXy_queue.get(block=True, timeout=5)  # list[毫秒时间戳，uwb_x, uwb_y]
+                    start_uwb_pos = self.in_uwbXy_queue.get(block=True, timeout=3)  # list[毫秒时间戳，uwb_x, uwb_y]
                     start_uwb_time = start_uwb_pos[0]
                 except Exception as e:
-                    print("No UWB xy in 5 seconds")
+                    print("No UWB xy in 3 seconds")
                     self.state = MagPositionState.STOP
+                    continue
+                if self.state == MagPositionState.STOP:
                     continue
 
                 # 从数据输入流中取地足够初始遍历的数据。注意如果过程中遇到END，则回到STOP状态
@@ -307,7 +326,7 @@ class MagPositionThread_UWB(threading.Thread):
                             # TODO start_transfer的旋转量，夹角
                             vector_pdr = end_pdr_xy[0] - start_pdr_xy[0], end_pdr_xy[1] - start_pdr_xy[1]
                             vector_uwb = end_uwb_xy[0] - start_uwb_xy[0], end_uwb_xy[1] - start_uwb_xy[1]
-                            start_transfer[2] = self.two_slope_angle_off(vector_pdr, vector_uwb)
+                            start_transfer[2] = self.two_slope_angle_off(vector_pdr, vector_uwb)  # TODO transfer使用的是弧度，不是角度
 
                         transfer, map_xy = MMT.produce_transfer_candidates_and_search(start_transfer,
                                                                                       self.TRANSFERS_PRODUCE_CONFIG,

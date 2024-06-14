@@ -39,7 +39,7 @@ def mag_position_server_start(config_json_file):
     # TODO 在这里增加接收、存储、传递UWB定位结果的队列，传输到MagPositionThread_UWB中，
     #  如果UWB提供的xy频率太低，则建议插值后再给这边，否则和PDRxy对应误差较大
     #  ***注意提供的UWB xy必须和磁场指纹地图mag_map的坐标系统一！&& 已经补偿了和这边的IMU数据的时间差异
-    uwb_input_queue = queue.Queue()  # TODO 提供 list[毫秒时间戳，uwb_x, uwb_y]
+    uwb_input_queue = queue.Queue()  # TODO 提供 list[毫秒时间戳，uwb_x, uwb_y]、每一段UWB定位开始前要添加起始标识符 “UWBS”，以供后面清空多余未使用的UWB坐标。
 
     # 定义线程
     socket_server_thread = SocketServerThread(socket_output_queue, configurations)
